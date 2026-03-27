@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Project Marvel - My Collection</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>My Collection 🎬</h1>
+    <p>Your rated Marvel movies</p>
+  </div>
+
+  <div id="topActions" class="top-actions">
+    <button class="top-btn" onclick="goToExplore()">+ Add Movie</button>
+    <button class="top-btn logout-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <div id="collection"></div>
+
+  <div class="add-btn" onclick="goToExplore()">+</div>
+
+  <div id="thoughtsModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeThoughts()">×</button>
+      <div id="thoughtsContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem("loggedInUser"));
+    const collection = document.getElementById("collection");
+
+    if (!user) {
+      window.location.href = "/login.html";
+    }
+
+    function goToExplore() {
+      window.location.href = "/explore.html";
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = "/login.html";
+    }
+
+    async function deleteReview(movieId) {
+      await fetch("/reviews/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: user.email,
+          movieId: Number(movieId)
+        })
+      });
+
+      loadCollection();
+    }
+
+    function editReview(movie) {
+      localStorage.setItem("selectedMovie", JSON.stringify({
+        id: Number(movie.movieId),
+        title: movie.title,
+        image: movie.image,
+        releaseDate: movie.releaseDate
+      }));
+      window.location.href = "/movie.html";
+    }
+
+    async function openThoughts(movieId) {
+      const modal = document.getElementById("thoughtsModal");
+      const content = document.getElementById("thoughtsContent");
+
+      modal.classList.remove("hidden");
+      content.innerHTML = "Loading...";
+
+      const res = await fetch("/movie-reviews/" + movieId);
+      const data = await res.json();
+
+      const total = data.total || 0;
+      const counts = data.counts || {};
+
+      const skip = counts.Skip || 0;
+      const timepass = counts.Timepass || 0;
+      const go = counts["Go for it"] || 0;
+      const perfect = counts.Perfection || 0;
+
+      const percent = (v) => total ? Math.round((v / total) * 100) : 0;
+
+      const skipP = percent(skip);
+      const timeP = percent(timepass);
+      const goP = percent(go);
+      const perfP = percent(perfect);
+
+      const meterStyle = `
+        conic-gradient(
+          #fb7185 0% ${skipP}%,
+          #facc15 ${skipP}% ${skipP + timeP}%,
+          #14e0b5 ${skipP + timeP}% ${skipP + timeP + goP}%,
+          #a855f7 ${skipP + timeP + goP}% 100%
+        )
+      `;
+
+      let reviewsHTML = "";
+
+      if (!data.reviews || !data.reviews.length) {
+        reviewsHTML = "<p>No reviews yet</p>";
+      } else {
+        reviewsHTML = data.reviews.map(r => `
+          <div class="global-review-card">
+            <div class="global-review-top">
+              <div class="user-badge">${(r.email || "U")[0].toUpperCase()}</div>
+              <div>
+                <div class="global-user">${r.email}</div>
+              </div>
+              <div class="global-rating-pill ${r.rating.toLowerCase().replace(/ /g,'')}">
+                ${r.rating}
+              </div>
+            </div>
+            <div class="global-review-text">${r.review || "No review"}</div>
+          </div>
+        `).join("");
+      }
+
+      content.innerHTML = `
+        <div class="meter-card">
+          <h2>What People Think</h2>
+          <div class="meter-wrap">
+            <div class="meter-ring" style="background:${meterStyle}">
+              <div class="meter-inner">
+                <div class="meter-percent">${Math.max(skipP, timeP, goP, perfP)}%</div>
+                <div class="meter-votes">${total} votes</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="meter-legend">
+            <div>Skip ${skipP}%</div>
+            <div>Timepass ${timeP}%</div>
+            <div>Go for it ${goP}%</div>
+            <div>Perfection ${perfP}%</div>
+          </div>
+        </div>
+
+        <div class="reviews-block">
+          <h2>Reviews</h2>
+          ${reviewsHTML}
+        </div>
+      `;
+    }
+
+    function closeThoughts() {
+      document.getElementById("thoughtsModal").classList.add("hidden");
+    }
+
+    async function loadCollection() {
+      const res = await fetch("/reviews/" + encodeURIComponent(user.email));
+      const data = await res.json();
+
+      if (!data.length) {
+        collection.innerHTML = `
+          <div class="empty-state">
+            <h2>No movies rated yet</h2>
+            <p>Tap the + button and add your first Marvel movie.</p>
+          </div>
+        `;
+        return;
+      }
+
+      collection.innerHTML = "";
+
+      data.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "movie-card";
+
+        const badge =
+          item.rating === "Skip" ? "skip" :
+          item.rating === "Timepass" ? "timepass" :
+          item.rating === "Go for it" ? "goforit" : "perfection";
+
+        card.innerHTML = `
+          <img src="${item.image}" alt="${item.title}">
+          <div class="movie-info">
+            <div class="movie-title">${item.title}</div>
+            <div class="movie-date">${item.releaseDate}</div>
+
+            <div class="rating-badge ${badge}">
+              ${item.rating}
+            </div>
+
+            <div class="review-preview">
+              ${item.review || "No review"}
+            </div>
+
+            <button class="edit-review-btn" type="button">
+              Edit Review
+            </button>
+
+            <button class="delete-review-btn" type="button">
+              Delete Review
+            </button>
+
+            <button class="thoughts-btn" type="button">
+              🔥 What People Think
+            </button>
+          </div>
+        `;
+
+        const editBtn = card.querySelector(".edit-review-btn");
+        const deleteBtn = card.querySelector(".delete-review-btn");
+        const thoughtsBtn = card.querySelector(".thoughts-btn");
+
+        editBtn.onclick = () => editReview(item);
+        deleteBtn.onclick = () => deleteReview(item.movieId);
+        thoughtsBtn.onclick = () => openThoughts(item.movieId);
+
+        collection.appendChild(card);
+      });
+    }
+
+    loadCollection();
+  </script>
+
+</body>
+</html>

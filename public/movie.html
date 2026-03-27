@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Project Marvel - Movie Details</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="movie-page-wrap">
+    <div class="movie-page" id="moviePage"></div>
+  </div>
+
+  <script>
+    const movie = JSON.parse(localStorage.getItem("selectedMovie"));
+    const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
+    const moviePage = document.getElementById("moviePage");
+
+    let selectedRating = "";
+
+    if (!loggedInUser) {
+      window.location.href = "/login.html";
+    }
+
+    function getRatingClass(rating) {
+      if (rating === "Skip") return "skip";
+      if (rating === "Timepass") return "timepass";
+      if (rating === "Go for it") return "goforit";
+      return "perfection";
+    }
+
+    function setRating(rating) {
+      selectedRating = rating;
+      const text = document.getElementById("selectedRatingText");
+      text.innerText = "Selected: " + rating;
+      text.className = "selected-rating-text " + getRatingClass(rating);
+    }
+
+    function goBack() {
+      window.location.href = "/index.html";
+    }
+
+    async function loadMyExistingReview() {
+      try {
+        const res = await fetch("/my-review/" + encodeURIComponent(loggedInUser.email) + "/" + Number(movie.id));
+        const data = await res.json();
+
+        if (data) {
+          selectedRating = data.rating || "";
+
+          const reviewText = document.getElementById("reviewText");
+          const selectedText = document.getElementById("selectedRatingText");
+
+          if (reviewText) reviewText.value = data.review || "";
+
+          if (selectedText) {
+            selectedText.innerText = "Selected: " + (data.rating || "None");
+            selectedText.className = "selected-rating-text " + getRatingClass(data.rating || "");
+          }
+        }
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    function loadMoviePage() {
+      if (!movie) {
+        moviePage.innerHTML = "<h2>No movie selected ❌</h2>";
+        return;
+      }
+
+      moviePage.innerHTML = `
+        <div class="movie-detail-card">
+          <img src="${movie.image}" class="movie-detail-poster" />
+
+          <div class="movie-detail-info">
+            <h1>${movie.title}</h1>
+            <p class="release-text">${movie.releaseDate}</p>
+
+            <h3>Edit Your Review</h3>
+
+            <div class="rating-buttons">
+              <button class="rate-btn skip-btn" onclick="setRating('Skip')">Skip</button>
+              <button class="rate-btn timepass-btn" onclick="setRating('Timepass')">Timepass</button>
+              <button class="rate-btn goforit-btn" onclick="setRating('Go for it')">Go for it</button>
+              <button class="rate-btn perfection-btn" onclick="setRating('Perfection')">Perfection</button>
+            </div>
+
+            <p id="selectedRatingText" class="selected-rating-text">Selected: None</p>
+
+            <textarea id="reviewText" placeholder="Write your review here..."></textarea>
+
+            <div class="movie-action-row">
+              <button class="submit-review-btn" onclick="submitReview()">Save Review</button>
+              <button class="secondary-btn" onclick="goBack()">Back</button>
+            </div>
+
+            <p id="reviewStatus" class="review-status"></p>
+          </div>
+        </div>
+      `;
+
+      loadMyExistingReview();
+    }
+
+    async function submitReview() {
+      const status = document.getElementById("reviewStatus");
+
+      if (!selectedRating) {
+        status.innerText = "Please select a rating ❌";
+        status.className = "review-status error";
+        return;
+      }
+
+      const reviewText = document.getElementById("reviewText").value;
+
+      const payload = {
+        email: loggedInUser.email,
+        movieId: Number(movie.id),
+        title: movie.title,
+        image: movie.image,
+        releaseDate: movie.releaseDate,
+        rating: selectedRating,
+        review: reviewText
+      };
+
+      try {
+        const res = await fetch("/reviews", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          status.innerText = data.error || "Error ❌";
+          status.className = "review-status error";
+          return;
+        }
+
+        status.innerText = "Review saved ✅";
+        status.className = "review-status success";
+
+        setTimeout(() => {
+          window.location.href = "/index.html";
+        }, 700);
+
+      } catch (err) {
+        status.innerText = "Server error ❌";
+        status.className = "review-status error";
+      }
+    }
+
+    loadMoviePage();
+  </script>
+
+</body>
+</html>
