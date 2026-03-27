@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const path = require("path");
+require("dotenv").config();
 
 const app = express();
 
@@ -11,9 +12,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 // ================= DATABASE =================
-mongoose.connect("mongodb://127.0.0.1:27017/marvelDB")
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("DB Connected"))
-  .catch((err) => console.log("DB Error:", err));
+  .catch((err) => {
+    console.log("DB Error:", err);
+    process.exit(1);
+  });
 
 // ================= MODELS =================
 const userSchema = new mongoose.Schema({
@@ -171,6 +175,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "login.html"));
 });
 
-app.listen(5000, () => {
-  console.log("Server running on http://127.0.0.1:5000");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
